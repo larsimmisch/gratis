@@ -12,15 +12,15 @@
 // express or implied.  See the License for the specific language
 // governing permissions and limitations under the License.
 
-#if !defined(GPIO_TEST_H)
-#define GPIO_TEST_H
+#if !defined(EPD_PINOUT_H)
+#define EPD_PINOUT_H 1
 
-#include "gpio.h"
+#include <EPD_PANELS.h>
 
-#define LED_BLUE GPIO_P1_23
-#define LED_WHITE GPIO_P1_21
-
-#define LED_PWM GPIO_P1_12
-
+#if defined(ENERGIA)
+#include <EPD_PINOUT_Energia.h>
+#else
+#include <EPD_PINOUT_Arduino.h>
+#endif
 
 #endif

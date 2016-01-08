@@ -14,7 +14,7 @@
 // governing permissions and limitations under the License.
 
 
-// Notice: ***** Generated file: DO _NOT_ MODIFY, Created on: 2015-03-27 05:59:59 UTC *****
+// Notice: ***** Generated file: DO _NOT_ MODIFY, Created on: 2015-09-20 10:09:22 UTC *****
 
 
 // graphic temperature display
@@ -22,25 +22,30 @@
 // Operation from reset:
 // * display version
 // * display compiled-in display setting
-// * display FLASH detected or not
+// * display EPD FLASH detected or not
 // * display temperature (displayed before every image is changed)
 // * clear screen
 // * update display (temperature)
 // * delay 60 seconds (flash LED)
 // * back to update display
 
-
+#if defined(ENERGIA)
+#include <Energia.h>
+#else
 #include <Arduino.h>
+#endif
+
 #include <inttypes.h>
 #include <ctype.h>
 
 // required libraried
 #include <SPI.h>
-#include <FLASH.h>
+#include <EPD_FLASH.h>
 #include <EPD_V230_G2.h>
 #define SCREEN_SIZE 144
 #include <EPD_PANELS.h>
 #include <S5813A.h>
+#include <EPD_PINOUT.h>
 #include <Adafruit_GFX.h>
 #include <EPD_GFX.h>
 
@@ -52,44 +57,7 @@
 // no futher changes below this point
 
 // current version number
-#define THERMO_VERSION "4"
-
-
-#if defined(__MSP430_CPU__)
-
-// TI LaunchPad IO layout
-const int Pin_TEMPERATURE = A4;
-const int Pin_PANEL_ON = P2_3;
-const int Pin_BORDER = P2_5;
-const int Pin_DISCHARGE = P2_4;
-#if EPD_PWM_REQUIRED
-const int Pin_PWM = P2_1;
-#endif
-const int Pin_RESET = P2_2;
-const int Pin_BUSY = P2_0;
-const int Pin_EPD_CS = P2_6;
-const int Pin_FLASH_CS = P2_7;
-const int Pin_SW2 = P1_3;
-const int Pin_RED_LED = P1_0;
-
-#else
-
-// Arduino IO layout
-const int Pin_TEMPERATURE = A0;
-const int Pin_PANEL_ON = 2;
-const int Pin_BORDER = 3;
-const int Pin_DISCHARGE = 4;
-#if EPD_PWM_REQUIRED
-const int Pin_PWM = 5;
-#endif
-const int Pin_RESET = 6;
-const int Pin_BUSY = 7;
-const int Pin_EPD_CS = 8;
-const int Pin_FLASH_CS = 9;
-const int Pin_SW2 = 12;
-const int Pin_RED_LED = 13;
-
-#endif
+#define THERMO_VERSION "5"
 
 
 // LED anode through resistor to I/O pin
@@ -132,7 +100,7 @@ void setup() {
 	pinMode(Pin_DISCHARGE, OUTPUT);
 	pinMode(Pin_BORDER, OUTPUT);
 	pinMode(Pin_EPD_CS, OUTPUT);
-	pinMode(Pin_FLASH_CS, OUTPUT);
+	pinMode(Pin_EPD_FLASH_CS, OUTPUT);
 
 	digitalWrite(Pin_RED_LED, LOW);
 #if EPD_PWM_REQUIRED
@@ -143,7 +111,7 @@ void setup() {
 	digitalWrite(Pin_DISCHARGE, LOW);
 	digitalWrite(Pin_BORDER, LOW);
 	digitalWrite(Pin_EPD_CS, LOW);
-	digitalWrite(Pin_FLASH_CS, HIGH);
+	digitalWrite(Pin_EPD_FLASH_CS, HIGH);
 
 	Serial.begin(9600);
 #if defined(__AVR__)
@@ -159,11 +127,11 @@ void setup() {
 	Serial.println("COG: G" MAKE_STRING(EPD_CHIP_VERSION));
 	Serial.println();
 
-	FLASH.begin(Pin_FLASH_CS);
-	if (FLASH.available()) {
-		Serial.println("FLASH chip detected OK");
+	EPD_FLASH.begin(Pin_EPD_FLASH_CS);
+	if (EPD_FLASH.available()) {
+		Serial.println("EPD FLASH chip detected OK");
 	} else {
-		Serial.println("unsupported FLASH chip");
+		Serial.println("unsupported EPD FLASH chip");
 	}
 
 	// configure temperature sensor

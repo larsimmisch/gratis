@@ -26,7 +26,7 @@
 // Operation from reset:
 // * display version
 // * display compiled-in display setting
-// * display FLASH detected or not
+// * display EPD FLASH detected or not
 // * display temperature (displayed before every image is changed)
 // * clear screen
 // * delay 5 seconds
@@ -40,10 +40,10 @@
 
 #include <SPI.h>
 #include <SD.h>
-#include <FLASH.h>
-#include <EPD_V110_G1.h>
+#include <EPD_FLASH.h>
+//#include <EPD_V110_G1.h>
+#include <EPD_V231_G2.h>
 #include <S5813A.h>
-#include <FLASH.h>
 
 
 // Change this for different display size
@@ -63,11 +63,13 @@ const int Pin_TEMPERATURE = A4;
 const int Pin_PANEL_ON = P2_3;
 const int Pin_BORDER = P2_5;
 const int Pin_DISCHARGE = P2_4;
+#if EPD_PWM_REQUIRED
 const int Pin_PWM = P2_1;
+#endif
 const int Pin_RESET = P2_2;
 const int Pin_BUSY = P2_0;
 const int Pin_EPD_CS = P2_6;
-const int Pin_FLASH_CS = P2_7;
+const int Pin_EPD_FLASH_CS = P2_7;
 const int Pin_SW2 = P1_3;
 const int Pin_RED_LED = P1_0;
 
@@ -78,11 +80,13 @@ const int Pin_TEMPERATURE = A0;
 const int Pin_PANEL_ON = 2;
 const int Pin_BORDER = 3;
 const int Pin_DISCHARGE = 4;
+#if EPD_PWM_REQUIRED
 const int Pin_PWM = 5;
+#endif
 const int Pin_RESET = 6;
 const int Pin_BUSY = 7;
 const int Pin_EPD_CS = 8;
-const int Pin_FLASH_CS = 9;
+const int Pin_EPD_FLASH_CS = 9;
 const int Pin_SD_CS = 10;
 
 #endif
@@ -97,7 +101,11 @@ const int Pin_SD_CS = 10;
 
 
 // define the E-Ink display
+#if EPD_PWM_REQUIRED
 EPD_Class EPD(EPD_SIZE, Pin_PANEL_ON, Pin_BORDER, Pin_DISCHARGE, Pin_PWM, Pin_RESET, Pin_BUSY, Pin_EPD_CS);
+#else
+EPD_Class EPD(EPD_SIZE, Pin_PANEL_ON, Pin_BORDER, Pin_DISCHARGE, Pin_RESET, Pin_BUSY, Pin_EPD_CS);
+#endif
 
 
 File index_file;
@@ -208,22 +216,26 @@ void current_image_reader(void *buffer, uint32_t address, uint16_t length){
 void setup() {
 
 	pinMode(Pin_TEMPERATURE, INPUT);
+#if EPD_PWM_REQUIRED
 	pinMode(Pin_PWM, OUTPUT);
+#endif
 	pinMode(Pin_BUSY, INPUT);
 	pinMode(Pin_RESET, OUTPUT);
 	pinMode(Pin_PANEL_ON, OUTPUT);
 	pinMode(Pin_DISCHARGE, OUTPUT);
 	pinMode(Pin_BORDER, OUTPUT);
 	pinMode(Pin_EPD_CS, OUTPUT);
-	pinMode(Pin_FLASH_CS, OUTPUT);
+	pinMode(Pin_EPD_FLASH_CS, OUTPUT);
 
+#if EPD_PWM_REQUIRED
 	digitalWrite(Pin_PWM, LOW);
+#endif
 	digitalWrite(Pin_RESET, LOW);
 	digitalWrite(Pin_PANEL_ON, LOW);
 	digitalWrite(Pin_DISCHARGE, LOW);
 	digitalWrite(Pin_BORDER, LOW);
 	digitalWrite(Pin_EPD_CS, LOW);
-	digitalWrite(Pin_FLASH_CS, HIGH);
+	digitalWrite(Pin_EPD_FLASH_CS, HIGH);
 
 #if !defined(__MSP430_CPU__)
 	// wait for USB CDC serial port to connect.  Arduino Leonardo only
@@ -236,11 +248,11 @@ void setup() {
 	Serial.println("Display: " MAKE_STRING(EPD_SIZE));
 	Serial.println();
 
-	FLASH.begin(Pin_FLASH_CS);
-	if (FLASH.available()) {
-		Serial.println("FLASH chip detected OK");
+	EPD_FLASH.begin(Pin_EPD_FLASH_CS);
+	if (EPD_FLASH.available()) {
+		Serial.println("EPD FLASH chip detected OK");
 	} else {
-		Serial.println("unsupported FLASH chip");
+		Serial.println("unsupported EPD FLASH chip");
 	}
 
 	// configure temperature sensor

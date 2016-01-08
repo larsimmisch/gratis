@@ -12,20 +12,24 @@
 // express or implied.  See the License for the specific language
 // governing permissions and limitations under the License.
 
-#if !defined(GPIO_TEST_H)
-#define GPIO_TEST_H
+#if !defined(EPD_PINOUT_ARDUINO_H)
+#define EPD_PINOUT_ARDUINO_H 1
 
-#include "gpio.h"
 
-//#define LED_BLUE GPIO_P9_12
-//#define LED_WHITE GPIO_P9_15
+// Arduino IO layout
+const int Pin_TEMPERATURE = A0;
+const int Pin_PANEL_ON = 2;
+const int Pin_BORDER = 3;
+const int Pin_DISCHARGE = 4;
+#if EPD_PWM_REQUIRED
+const int Pin_PWM = 5;
+#endif
+const int Pin_RESET = 6;
+const int Pin_BUSY = 7;
+const int Pin_EPD_CS = 8;
+const int Pin_EPD_FLASH_CS = 9;
+const int Pin_SW2 = 12;
+const int Pin_RED_LED = 13;
 
-//#define LED_BLUE GPIO_P9_15
-//#define LED_WHITE GPIO_P9_23
-
-#define LED_BLUE GPIO_P9_26
-#define LED_WHITE GPIO_P9_27
-
-#define LED_PWM GPIO_P9_14
 
 #endif
