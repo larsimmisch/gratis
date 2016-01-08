@@ -64,10 +64,10 @@ typedef enum {
 
 // enable GPIO system (maps device registers)
 // return false if failure
-bool GPIO_setup();
+bool GPIO_setup(void);
 
 // release mapped device registers
-bool GPIO_teardown();
+bool GPIO_teardown(void);
 
 // set a mode for a given GPIO pin
 void GPIO_mode(GPIO_pin_type pin, GPIO_mode_type mode);
