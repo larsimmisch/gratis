@@ -11,6 +11,7 @@ from os import path
 epdirect_version = '0.8'
 
 epd_target = 'V231_G2'
+host = 'RaspberryPi'
 
 # patch distutils if it's too old to cope with the "classifiers" or
 # "download_url" keywords
@@ -41,6 +42,10 @@ if __name__ == '__main__':
             'Topic :: System :: Hardware',
             ],
         ext_modules=[
-            Extension('epdirect',['epdirect.c', path.join('..', 'spi.c')],
-                      include_dirs = ['..', path.join('..', epd_target)])],
+            Extension(
+                'epdirect',
+                ['epdirect.c', path.join('..', 'spi.c'),
+                 path.join('..', epd_target, 'epd.c')],
+                include_dirs = ['..', path.join('..', epd_target),
+                                path.join('..', '..', host)])],
     )

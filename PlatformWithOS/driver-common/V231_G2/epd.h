@@ -33,7 +33,6 @@
 #define EPD_2_7_SUPPORT       1
 
 
-// possible panel sizes
 typedef enum {
 	EPD_1_44,        // 128 x 96
 	EPD_1_9,         // 144 x 128

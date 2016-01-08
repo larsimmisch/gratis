@@ -1,4 +1,4 @@
-/* -*- Mode: C; c-basic-offset: 4; indent-tabs-mode: nil -*- */ 
+/* -*- Mode: C; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 
 /*
  * epdirect - a python interface to the eInk paper driver from repaper.org
@@ -17,6 +17,9 @@
 #include <stdio.h>
 #include "spi.h"
 #include "epd.h"
+#include "epd_internal.h"
+#include "gpio.h"
+#include "epd_io.h"
 
 PyDoc_STRVAR(epdirect_module_doc,
              "This modules gives direct access to the ePaper drivers from Pervasive displays");
@@ -35,20 +38,27 @@ static PyTypeObject EPDirectType;
 static PyObject *EPDirectError;
 
 static PyObject *
-epdirect_new(PyTypeObject *type, PyObject *args, PyObject *kwds) 
+epdirect_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-    int res;
     epdirect_t *self;
     char *kw[] = { "size", "spipath", "spibps", NULL };
     int size = (int)EPD_2_7;
     char *spipath = NULL;
     int spibps = 0;
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|izi", kw,
-                                     &pcmtype, &pcmmode, &cardname)) 
+    // pin definitions come from epd_io.h
+    int pin_panel_on = panel_on_pin;
+    int pin_border = border_pin;
+    int pin_discharge = discharge_pin;
+    int pin_reset = reset_pin;
+    int pin_busy = busy_pin;
+
+    if (!PyArg_ParseTupleAndKeywords(
+            args, kwds, "|iziiiiii", kw,
+            &size, &spipath, &spibps, &pin_panel_on, &pin_border,
+            &pin_discharge, &pin_reset, &pin_busy))
         return NULL;
-    
-    if (!(self = (epdirect_t *)PyObject_New(epdirect_t, &EPDirectType))) 
+
+    if (!(self = (epdirect_t *)PyObject_New(epdirect_t, &EPDirectType)))
         return NULL;
 
     if (size < 0 || size > EPD_2_7)
@@ -58,14 +68,19 @@ epdirect_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
     }
 
     self->spi = SPI_create(spipath, spibps);
-    if (!spi) {
+    if (!self->spi) {
         PyErr_SetString(EPDirectError, "Cannot allocate SPI");
         return NULL;
     }
-    
-    self->epd = EPD_create((EPD_SIZE)size,
+
+    self->epd = EPD_create((EPD_size)size,
+                           pin_panel_on,
+                           pin_border,
+                           pin_discharge,
+                           pin_reset,
+                           pin_busy,
                            self->spi);
-    
+
     if (!self->epd)
     {
         PyErr_SetString(EPDirectError, "Cannot allocate EPD");
@@ -75,7 +90,7 @@ epdirect_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 static void
-epdirect_dealloc(alsapcm_t *self) 
+epdirect_dealloc(epdirect_t *self)
 {
     if (self->epd) {
         EPD_destroy(self->epd);
@@ -89,9 +104,9 @@ epdirect_dealloc(alsapcm_t *self)
 }
 
 static PyObject *
-epdirect_close(alsapcm_t *self, PyObject *args) 
+epdirect_close(epdirect_t *self, PyObject *args)
 {
-    if (!PyArg_ParseTuple(args,":close")) 
+    if (!PyArg_ParseTuple(args,":close"))
         return NULL;
 
     if (self->epd) {
@@ -102,7 +117,7 @@ epdirect_close(alsapcm_t *self, PyObject *args)
         SPI_destroy(self->spi);
         self->spi = NULL;
     }
-    
+
     Py_INCREF(Py_None);
     return Py_None;
 }
@@ -113,7 +128,7 @@ PyDoc_STRVAR(close_doc,
 Close a EPDirect object.");
 
 static PyObject *
-epdirect_set_temperature(epdirect_t *self, PyObject *args) 
+epdirect_set_temperature(epdirect_t *self, PyObject *args)
 {
     int temperature;
     if (!PyArg_ParseTuple(args,"i:settemperature", &temperature)) {
@@ -125,7 +140,7 @@ epdirect_set_temperature(epdirect_t *self, PyObject *args)
         return NULL;
     }
 
-    EPD_set_temperature(self, temperature);
+    EPD_set_temperature(self->epd, temperature);
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -138,10 +153,8 @@ Set the temperature compensation (call before begin).\n\
 The unit is degree Celsius");
 
 static PyObject *
-epdirect_clear(epdirect_t *self, PyObject *args) 
+epdirect_clear(epdirect_t *self, PyObject *args)
 {
-    int res;
-
     if (!PyArg_ParseTuple(args,":clear")) {
         return NULL;
     }
@@ -153,9 +166,9 @@ epdirect_clear(epdirect_t *self, PyObject *args)
     }
 
     Py_BEGIN_ALLOW_THREADS
-    EPD_set_clear(self);
+    EPD_clear(self->epd);
     Py_END_ALLOW_THREADS
-    
+
     Py_INCREF(Py_None);
     return Py_None;
 }
@@ -166,19 +179,18 @@ PyDoc_STRVAR(clear_doc,
 Clear the display.");
 
 static PyObject *
-epdirect_image_0(epdirect_t *self, PyObject *args) 
+epdirect_image_0(epdirect_t *self, PyObject *args)
 {
-    int res;
     int imagelen;
-    char *image;
-    
+    uint8_t *image;
+
 #if PY_MAJOR_VERSION < 3
-    if (!PyArg_ParseTuple(args,"s#:image_0", &image, &imagelen)) 
+    if (!PyArg_ParseTuple(args,"s#:image_0", &image, &imagelen))
         return NULL;
 #else
     Py_buffer buf;
 
-    if (!PyArg_ParseTuple(args,"y*:image_0",&buf)) 
+    if (!PyArg_ParseTuple(args,"y*:image_0",&buf))
         return NULL;
 
     image = buf.buf;
@@ -190,18 +202,18 @@ epdirect_image_0(epdirect_t *self, PyObject *args)
         PyErr_SetString(EPDirectError, "EPD device is closed");
         return NULL;
     }
-    
+
     if (imagelen != self->epd->bytes_per_line * self->epd->lines_per_display) {
         PyErr_SetString(EPDirectError, "Invalid image size");
-        return NULL;        
+        return NULL;
     }
-    
+
     Py_BEGIN_ALLOW_THREADS
-    EPD_image_0(self, image);
+    EPD_image_0(self->epd, image);
     Py_END_ALLOW_THREADS
-    
+
     Py_INCREF(Py_None);
-    return Py_None;  
+    return Py_None;
 }
 
 PyDoc_STRVAR(image_0_doc,
@@ -210,25 +222,24 @@ PyDoc_STRVAR(image_0_doc,
 Output an image, assuming a clear (white) screen");
 
 static PyObject *
-epdirect_image(epdirect_t *self, PyObject *args) 
+epdirect_image(epdirect_t *self, PyObject *args)
 {
-    int res;
     int imagelen;
-    char *image;
+    uint8_t *image;
     int old_imagelen;
-    char *old_image;
-    
+    uint8_t *old_image;
+
 #if PY_MAJOR_VERSION < 3
     if (!PyArg_ParseTuple(args,"s#s#:image", &old_image, &old_imagelen,
-                          &image, &imagelen)) 
+                          &image, &imagelen))
         return NULL;
 #else
     Py_buffer buf;
     Py_buffer old_buf;
 
-    if (!PyArg_ParseTuple(args,"y*y*:image", &old_buf, &buf)) 
+    if (!PyArg_ParseTuple(args,"y*y*:image", &old_buf, &buf))
         return NULL;
-    
+
     old_image = old_buf.buf;
     old_imagelen = old_buf.len;
     image = buf.buf;
@@ -240,21 +251,21 @@ epdirect_image(epdirect_t *self, PyObject *args)
         PyErr_SetString(EPDirectError, "EPD device is closed");
         return NULL;
     }
-    
-    if (imagelen != self->bytes_per_line * self->lines_per_display) {
+
+    if (imagelen != self->epd->bytes_per_line * self->epd->lines_per_display) {
         PyErr_SetString(EPDirectError, "Invalid image size");
-        return NULL;        
+        return NULL;
     }
 
-    if (old_imagelen != self->bytes_per_line * self->lines_per_display) {
+    if (old_imagelen != self->epd->bytes_per_line * self->epd->lines_per_display) {
         PyErr_SetString(EPDirectError, "Invalid image size (old)");
-        return NULL;        
+        return NULL;
     }
-    
+
     Py_BEGIN_ALLOW_THREADS
-        EPD_image(self, old_image, image);
+        EPD_image(self->epd, old_image, image);
     Py_END_ALLOW_THREADS
-    
+
     Py_INCREF(Py_None);
     return Py_None;
 }
@@ -265,25 +276,24 @@ PyDoc_STRVAR(image_doc,
 Output an image");
 
 static PyObject *
-epdirect_image_partial(epdirect_t *self, PyObject *args) 
+epdirect_image_partial(epdirect_t *self, PyObject *args)
 {
-    int res;
     int imagelen;
-    char *image;
+    uint8_t *image;
     int old_imagelen;
-    char *old_image;
-    
+    uint8_t *old_image;
+
 #if PY_MAJOR_VERSION < 3
     if (!PyArg_ParseTuple(args,"s#s#:image_partial", &old_image, &old_imagelen,
-                          &image, &imagelen)) 
+                          &image, &imagelen))
         return NULL;
 #else
     Py_buffer buf;
     Py_buffer old_buf;
 
-    if (!PyArg_ParseTuple(args,"y*y*:image", &old_buf, &buf)) 
+    if (!PyArg_ParseTuple(args,"y*y*:image", &old_buf, &buf))
         return NULL;
-    
+
     old_image = old_buf.buf;
     old_imagelen = old_buf.len;
     image = buf.buf;
@@ -295,27 +305,27 @@ epdirect_image_partial(epdirect_t *self, PyObject *args)
         PyErr_SetString(EPDirectError, "EPD device is closed");
         return NULL;
     }
-    
-    if (imagelen != self->bytes_per_line * self->lines_per_display) {
+
+    if (imagelen != self->epd->bytes_per_line * self->epd->lines_per_display) {
         PyErr_SetString(EPDirectError, "Invalid image size");
-        return NULL;        
+        return NULL;
     }
 
-    if (old_imagelen != self->bytes_per_line * self->lines_per_display) {
+    if (old_imagelen != self->epd->bytes_per_line * self->epd->lines_per_display) {
         PyErr_SetString(EPDirectError, "Invalid image size (old)");
-        return NULL;        
+        return NULL;
     }
-    
+
     Py_BEGIN_ALLOW_THREADS
-        EPD_image(self, old_image, image);
+        EPD_image(self->epd, old_image, image);
     Py_END_ALLOW_THREADS
-    
+
     Py_INCREF(Py_None);
     return Py_None;
 }
 
-PyDoc_STRVAR(image_doc,
-"image(old_image, image) -> None\n\
+PyDoc_STRVAR(image_partial_doc,
+"image_partial(old_image, image) -> None\n\
 \n\
 Output an image");
 
@@ -329,14 +339,16 @@ static PyMethodDef epdirect_methods[] = {
     { "image_0", (PyCFunction)epdirect_image_0, METH_VARARGS, image_0_doc},
     { "image", (PyCFunction)epdirect_image, METH_VARARGS, image_doc},
     { "image_partial", (PyCFunction)epdirect_image_partial, METH_VARARGS,
-        image_partial_doc},
+      image_partial_doc},
+    { "close", (PyCFunction)epdirect_close, METH_VARARGS,
+        close_doc},
     {NULL, NULL}
 };
 
-#if PY_VERSION_HEX < 0x02020000 
-static PyObject *	 
-epdirect_getattr(alsapcm_t *self, char *name) {	 
-    return Py_FindMethod(epdirect_methods, (PyObject *)self, name);	 
+#if PY_VERSION_HEX < 0x02020000
+static PyObject *
+epdirect_getattr(alsapcm_t *self, char *name) {
+    return Py_FindMethod(epdirect_methods, (PyObject *)self, name);
 }
 #endif
 
@@ -350,7 +362,7 @@ static PyTypeObject EPDirectType = {
     "epdirect.EPD",                 /* tp_name */
     sizeof(epdirect_t),             /* tp_basicsize */
     0,                              /* tp_itemsize */
-    /* methods */    
+    /* methods */
     (destructor) epdirect_dealloc,  /* tp_dealloc */
     0,                              /* print */
 #if PY_VERSION_HEX < 0x02020000
@@ -359,7 +371,7 @@ static PyTypeObject EPDirectType = {
     0,                              /* tp_getattr */
 #endif
     0,                              /* tp_setattr */
-    0,                              /* tp_compare */ 
+    0,                              /* tp_compare */
     0,                              /* tp_repr */
     0,                              /* tp_as_number */
     0,                              /* tp_as_sequence */
@@ -367,7 +379,7 @@ static PyTypeObject EPDirectType = {
     0,                              /* tp_hash */
     0,                              /* tp_call */
     0,                              /* tp_str */
-#if PY_VERSION_HEX >= 0x02020000 
+#if PY_VERSION_HEX >= 0x02020000
     PyObject_GenericGetAttr,        /* tp_getattro */
 #else
     0,                              /* tp_getattro */
@@ -411,7 +423,7 @@ static struct PyModuleDef epdirect_module = {
 #endif // 3.0
 
 #if PY_MAJOR_VERSION < 3
-void initepdirect(void) 
+void initepdirect(void)
 #else
 PyObject *PyInit_epdirect(void)
 #endif
@@ -423,17 +435,17 @@ PyObject *PyInit_epdirect(void)
 
 #if PY_MAJOR_VERSION < 3
     m = Py_InitModule3("epdirect", epdirect_methods, epdirect_module_doc);
-    if (!m) 
+    if (!m)
         return;
 #else
 
     m = PyModule_Create(&epdirect_module);
-    if (!m) 
+    if (!m)
         return NULL;
 
 #endif
 
-    EPDirectError = PyErr_NewException("epdirect.EPDirectError", NULL, 
+    EPDirectError = PyErr_NewException("epdirect.EPDirectError", NULL,
                                         NULL);
     if (!EPDirectError)
 #if PY_MAJOR_VERSION < 3
@@ -446,8 +458,8 @@ PyObject *PyInit_epdirect(void)
 
     Py_INCREF(&EPDirectType);
     PyModule_AddObject(m, "EPD", (PyObject *)&EPDirectType);
-  
-    Py_INCREF(ALSAAudioError);
+
+    Py_INCREF(EPDirectError);
     PyModule_AddObject(m, "EPDirectError", EPDirectError);
 
     _EXPORT_INT(m, "EPD_1_44", EPD_1_44);
@@ -462,7 +474,7 @@ PyObject *PyInit_epdirect(void)
     _EXPORT_INT(m, "EPD_IMAGE_ONE_ARG", EPD_IMAGE_ONE_ARG);
     _EXPORT_INT(m, "EPD_IMAGE_TWO_ARG", EPD_IMAGE_TWO_ARG);
     _EXPORT_INT(m, "EPD_PARTIAL_AVAILABLE", EPD_PARTIAL_AVAILABLE);
-    
+
 #if PY_MAJOR_VERSION >= 3
     return m;
 #endif
