@@ -23,8 +23,8 @@ PyDoc_STRVAR(epdirect_module_doc,
 
 typedef struct {
     PyObject_HEAD;
-    SPI_type spi;
-    EPD_type epd;
+    SPI_type *spi;
+    EPD_type *epd;
 } epdirect_t;
 
 /******************************************/

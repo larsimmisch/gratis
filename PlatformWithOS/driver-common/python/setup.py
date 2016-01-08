@@ -6,8 +6,11 @@
 from distutils.core import setup
 from distutils.extension import Extension
 from sys import version
+from os import path
 
 epdirect_version = '0.8'
+
+epd_target = 'V231_G2'
 
 # patch distutils if it's too old to cope with the "classifiers" or
 # "download_url" keywords
@@ -20,7 +23,7 @@ if version < '2.2.3':
 if __name__ == '__main__':
     setup(
         name = 'epdirect',
-        version = epdirect_version_,
+        version = epdirect_version,
         description = 'EPD direct API for repaper.org',
         long_description = __doc__,
         author = 'Lars Immsich',
@@ -37,5 +40,7 @@ if __name__ == '__main__':
             'Programming Language :: Python :: 3',
             'Topic :: System :: Hardware',
             ],
-        ext_modules=[Extension('epdirect',['epdirect.c'])]
+        ext_modules=[
+            Extension('epdirect',['epdirect.c', path.join('..', 'spi.c')],
+                      include_dirs = ['..', path.join('..', epd_target)])],
     )
